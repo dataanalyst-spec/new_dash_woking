@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Operations Dashboard</title>
+<style>
+:root{--bg:#f1f4f8;--card:#fff;--ink:#14212b;--mute:#5d6d7a;--line:#c3d3e2;--soft:#d9e0e6;--accent:#16507a;--ok:#bcdcf8;--warn:#f5b9be;--mid:#d9cdee;--good:#1f7a4d;--bad:#b3261e}
+*{box-sizing:border-box}
+body{margin:0;background:linear-gradient(135deg,#eaf2fb,#f5eefb);color:var(--ink);font:14px/1.4 "Segoe UI",system-ui,sans-serif}
+header{background:linear-gradient(90deg,#a9d3f2,#c9bdf0 60%,#f4c6d4);color:#17324a;padding:10px 20px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}
+header h1{margin:0;font-size:18px}
+.ch{padding:4px 0}.leg{display:flex;gap:14px;justify-content:center;font-size:12px;color:var(--mute)}.neg{color:#c0485a}
+.src{display:flex;gap:8px;align-items:center;font-size:13px;flex-wrap:wrap}
+button,select{font:inherit}
+button,.btn{background:#fff;color:var(--accent);border:0;border-radius:4px;padding:5px 11px;cursor:pointer}
+nav{display:flex;flex-wrap:wrap;gap:2px;padding:8px 20px 0;background:rgba(255,255,255,.7);border-bottom:1px solid var(--soft)}
+nav button{background:none;color:var(--mute);border-radius:4px 4px 0 0;padding:9px 14px;border-bottom:3px solid transparent}
+nav button.on{color:var(--ink);font-weight:600;border-color:#7fb7e6;background:#eef6fd}
+.layout{display:flex;gap:14px;padding:14px 20px;align-items:flex-start}
+aside{width:170px;flex:none;display:flex;flex-direction:column;gap:10px;position:sticky;top:8px}
+aside label{font-weight:600;display:flex;flex-direction:column;gap:3px}
+aside select{padding:5px;border:1px solid var(--line);border-radius:4px;background:#fff}
+.kpi{background:rgba(255,255,255,.9);border:1px solid var(--line);border-top:5px solid #9ec5f0;border-radius:5px;padding:14px 8px;text-align:center}
+.kpi.ok{border-top-color:#8fd3b6;background:#f1fbf6}.kpi.no{border-top-color:#f4a9b3;background:#fff4f6}
+.kpi span{font-weight:600;font-size:13px}.kpi b{display:block;font-size:30px}
+section.rep{flex:1;min-width:0}
+.title{text-align:center;font-size:30px;font-weight:700;margin:0 0 14px}
+.card{background:rgba(255,255,255,.88);border:1px solid var(--line);border-top:5px solid #9ec5f0;border-radius:8px;padding:10px 12px;margin-bottom:14px}
+.card h2{text-align:center;margin:0 0 10px;font-size:18px;color:#25465f}
+.g2 .card:nth-child(4n+2){border-top-color:#f7c9a9}.g2 .card:nth-child(4n+3){border-top-color:#bfe5c8}.g2 .card:nth-child(4n+4){border-top-color:#c7b8ea}
+.wrap{overflow:auto;max-height:380px}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{border:1px solid var(--line);padding:5px 8px;text-align:center;white-space:nowrap;max-width:300px;overflow:hidden;text-overflow:ellipsis}
+td:first-child{text-align:left}
+td.t{white-space:normal;min-width:220px;max-width:420px;text-align:left}
+th{white-space:normal;min-width:90px}
+th{background:#e8f2fb;position:sticky;top:0;z-index:1;border-bottom:2px solid #9ec5f0}
+tr:nth-child(even) td{background:#f8fbfe}
+tfoot td{font-weight:700;position:sticky;bottom:0;background:#e9e4f7}
+.g2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:stretch}
+.g2>.card{display:flex;flex-direction:column;min-width:0}.g2>.card .wrap{flex:1}
+@media(max-width:900px){.g2{grid-template-columns:minmax(0,1fr)}}
+.g2 .card{margin:0}
+.badge{display:inline-block;padding:1px 8px;border-radius:10px;font-size:12px}
+.b-ok{background:#d6f0e1;color:var(--good)}.b-no{background:#fbd9d6;color:var(--bad)}
+.b-late{background:#fdecc8;color:#8a5a00}
+aside input[type=date]{padding:4px;border:1px solid var(--line);border-radius:4px;background:#fff;font:inherit}
+.th2{font-weight:400;font-size:11px;color:var(--mute)}
+.msg{padding:30px;text-align:center;color:var(--mute)}.err{color:var(--bad)}
+.note{color:var(--mute);font-size:12px}
+@media(max-width:800px){.layout{flex-direction:column}aside{width:100%;position:static;flex-direction:row;flex-wrap:wrap}}
+@media print{header,nav,aside .noprint{display:none}.layout{padding:0}.wrap{max-height:none;overflow:visible}body{background:#fff}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Operations Reports</h1>
+  <div class="src">
+    <span id="status">Not loaded</span>
+    <button id="reload">Reload from Google Sheet</button>
+    <label class="btn">Upload CSV<input id="file" type="file" accept=".csv" hidden></label>
+    <button onclick="window.print()">Print / Save PDF</button>
+  </div>
+</header>
+<nav id="tabs"></nav>
+<div class="layout">
+  <aside id="filters"></aside>
+  <section class="rep" id="view"><div class="msg">Loading…</div></section>
+</div>
+
+<script>
+/* ---------- CONFIG ---------- */
+const PUB_ID = "2PACX-1vRa8WcNgkeutrP8x-D1c2NVNGYbMQrhAcDw38bfA9LnY1Q9iWyCvKYnYsj-OueH6u97MHutoenuw0Cq"; // Publish-to-web link id
+const GID = "1582878707";            // the Master tab (if the published link is only one sheet, this is ignored)
+const PROPS=["Gurukul","Tulsi","Camikara","Curie","Heisenberg","Samriddhi","Abhivritti","Plato","Adarsha","Orchid 5","Tara","Aradhana","Akanksha","Samshrusti","Meera","Kirti"];
+const ALIAS={"samshrushti":"Samshrusti","samshruti":"Samshrusti","orchid hostel":"Orchid 5","orchid":"Orchid 5","adarsh":"Adarsha","akansha":"Akanksha","akanksha":"Akanksha","aradhna":"Aradhana"};
+const GROUP_JAYANTA=["abhivritti","meera","samshrusti","kirti","camikara","ikshana"];
+const DONE=/^complete/i;     // Status that counts as "filled"
+// Panels group columns by keywords in the header (first match wins). Unmatched columns go to "Other details".
+const TASKS=[
+ {id:"ops",label:"Daily Expenses / Ops Report",match:["daily ops","expen"],panels:[
+  ["MIR, Attendance, HK & Security",/mir|moved in|attendance/i],["Water Tanker, Water Jar",/water/i],["Laundry",/laundry/i],
+  ["BUs Pick Up - Drop",/\bbus/i],["DG Topped Up",/\bdg\b/i],["Electricity",/meter|electric/i],["Breakfast / Lunch / Dinner",/breakfast|lunch|dinner/i]]},
+ {id:"round",label:"Daily Property Round",match:["property round"],panels:[
+  ["Entrance Area",/entrance/i],["Security Desk",/security/i],["Reception Area",/reception/i],["Grooming Standard",/grooming/i],
+  ["Cafeteria Setup",/cafeteria|buffet|microwave|dining/i],["Corridor Passage",/corridor|common/i],["Room Audit - HK Checking",/room/i],
+  ["Student Interactions",/student/i],["Self Observation",/self/i]]},
+ {id:"area",label:"Area Manager Report",match:["area manager"],panels:[
+  ["Tickets",/ticket/i],["Students: Complaints & Interaction",/complaint|interact|concern/i],["Security",/security|guard/i],
+  ["Rooms",/room|empty/i],["Registers & Staff",/register|housekeeping|uniform|hk/i],
+  ["Facilities & Compliance",/cctv|gym|signage|emergency|occupancy|dg|amc|pest|task completed/i]]},
+ {id:"om",label:"Daily Task - Operation Managers",match:["operation manager"],panels:[
+  ["Audits & Food Testing",/audit|food/i],["Students & Ambassadors",/student|ambassador|relationship/i],["Initiatives",/initiative/i]]}
+];
+/* ---------------------------- */
+const $=s=>document.querySelector(s);
+const META=/task id|description|task type|category|priority|accountable|scheduled|due at|completed at|overdue|subtask|recurring|created at|updated|^id$/i;
+let rows=[],cols=[],M={},tab="ops",F={year:"",month:"",week:"",day:"",from:"",to:"",property:""},DMIN=0,DMAX=0;
+const MON=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const key=(y,m,d)=>y*10000+m*100+d;
+const P=k=>({y:Math.floor(k/10000),m:Math.floor(k/100)%100,d:k%100});
+const fmt=k=>{const p=P(k);return p.d+"/"+p.m+"/"+p.y};
+const fmtS=k=>{const p=P(k);return p.d+" "+MON[p.m-1]};
+const addD=(k,n)=>{const p=P(k),t=new Date(p.y,p.m-1,p.d+n);return key(t.getFullYear(),t.getMonth()+1,t.getDate())};
+const dimOf=(y,m)=>new Date(y,m,0).getDate();
+const TODAY=(()=>{const t=new Date();return key(t.getFullYear(),t.getMonth()+1,t.getDate())})();
+const inputKey=v=>{const m=(v||"").match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?key(+m[1],+m[2],+m[3]):0};
+const opManager=p=>GROUP_JAYANTA.includes((p||"").trim().toLowerCase())?"Jayanta":"Arindam";
+const canon=p=>{const k=(p||"").trim().toLowerCase();return PROPS.find(x=>x.toLowerCase()===k)||ALIAS[k]||null};
+
+function parseCSV(t){const out=[];let r=[],c="",q=false;
+ for(let i=0;i<t.length;i++){const ch=t[i];
+  if(q){if(ch=='"'){if(t[i+1]=='"'){c+='"';i++}else q=false}else c+=ch}
+  else if(ch=='"')q=true;else if(ch==","){r.push(c);c=""}
+  else if(ch=="\n"){r.push(c);out.push(r);r=[];c=""}else if(ch!="\r")c+=ch}
+ if(c||r.length){r.push(c);out.push(r)}return out}
+function parseDate(s){s=(s||"").trim();if(!s)return null;
+ let m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);if(m)return{y:+m[1],m:+m[2],d:+m[3]};
+ m=s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/);
+ if(m){let a=+m[1],b=+m[2],y=+m[3];if(y<100)y+=2000;return b>12?{y,m:a,d:b}:{y,m:b,d:a}}
+ const d=new Date(s);return isNaN(d)?null:{y:d.getFullYear(),m:d.getMonth()+1,d:d.getDate()}}
+
+const NAMES={};PROPS.forEach(p=>NAMES[p.toLowerCase()]=p);Object.assign(NAMES,ALIAS);
+// OM: property from "Property name"/"Porperty name"; Area Manager: from "Name of the property" (not the Property column)
+function expandOM(o){
+ const re=o.tid==="om"?/porperty name|property name/i:o.tid==="area"?/name of the property/i:null;
+ if(!re)return[o];
+ const ix=cols.map((h,i)=>re.test(h)?i:-1).filter(i=>i>=0);
+ const txt=ix.map(i=>o.v[i]||"").join(" ").toLowerCase();
+ const found=[...new Set(Object.keys(NAMES).filter(k=>new RegExp("\\b"+k+"\\b").test(txt)).map(k=>NAMES[k]))];
+ return found.length?found.map(p=>({...o,prop:p,grp:o,label:found.join(", ")})):[o]}
+
+function load(text){
+ const t=parseCSV(text).filter(r=>r.some(x=>x.trim()));
+ cols=t[0].map(h=>h.trim());const find=re=>cols.findIndex(h=>re.test(h));
+ M={task:find(/task\s*name/i),prop:find(/^property$|name of the property|porperty name|property name/i),
+    date:(()=>{const i=find(/^date$/i);return i>=0?i:find(/date|timestamp|submitted/i)})(),
+    sch:find(/^scheduled start$/i),due:find(/^due at$/i),cre:find(/^created at$/i),cat:find(/^completed at$/i),
+    status:(()=>{let i=find(/^status$/i);if(i<0)i=find(/^task status$/i);if(i<0)i=cols.findIndex(h=>/status/i.test(h)&&!/cctv|occupancy/i.test(h));return i})(),
+    y:(()=>{const i=find(/^year$/i);return i>=0?i:find(/^\w+ year$/i)})(),mo:(()=>{const i=find(/^month$/i);return i>=0?i:find(/^\w+ month$/i)})(),d:(()=>{const i=find(/^day$/i);return i>=0?i:find(/^\w+ day$/i)})(),asg:find(/assigned to/i),by:find(/created by/i)};
+ if(M.task<0||M.prop<0){fail("Couldn't find 'Task name' and 'Property' columns. Found: "+cols.join(", "));return}
+ rows=t.slice(1).map(r=>{const o={v:r,prop:canon(r[M.prop]),task:(r[M.task]||"").toLowerCase()};
+  const dtOf=i=>i>=0?parseDate(r[i]):null;
+  // the day a task belongs to (all date filters) = the sheet's own Year / Month / Day columns (fallbacks: Created At, Scheduled Start, Date, Due At)
+  let dt=null;
+  if(M.y>=0&&M.mo>=0&&M.d>=0){const y=+r[M.y],m=+r[M.mo],d=+r[M.d];if(y>2000&&m>=1&&m<=12&&d>=1&&d<=31)dt={y,m,d}}
+  dt=dt||dtOf(M.cre)||dtOf(M.sch)||dtOf(M.date)||dtOf(M.due);
+  o.k=dt&&dt.y?key(dt.y,dt.m,dt.d):0;
+  o.y=o.k?P(o.k).y:0;o.m=o.k?P(o.k).m:0;o.d=o.k?P(o.k).d:0;
+  const c=dtOf(M.cat);o.ck=c&&c.y?key(c.y,c.m,c.d):0;
+  const sc=dtOf(M.sch);o.sk=sc&&sc.y?key(sc.y,sc.m,sc.d):o.k;   // scheduled day, used to judge on-time
+  o.status=M.status>=0?(r[M.status]||"").trim():"";
+  const sd=DONE.test(o.status)||(!o.status&&!!o.ck);
+  o.late=!!(sd&&o.ck&&o.sk&&o.ck>o.sk);   // completed, but after its scheduled day
+  o.done=sd&&!o.late;                   // completed on/before its scheduled day = achieved
+  o.tid=(TASKS.find(k=>k.match.some(x=>o.task.includes(x)))||{}).id||"";return o}).flatMap(expandOM).filter(o=>o.prop&&o.tid&&o.k);
+ DMIN=Math.min(...rows.map(o=>o.k));DMAX=Math.max(...rows.map(o=>o.k));
+ if(rows.length){const p=P(DMAX);F={year:String(p.y),month:String(p.m),week:"",day:String(p.d),from:"",to:"",property:""}}
+ $("#status").textContent=rows.length+" rows loaded";render()}
+function fail(m){$("#view").innerHTML='<div class="msg err">'+m+'</div>';$("#status").textContent="Load failed"}
+async function fetchSheet(){$("#status").textContent="Loading…";
+ try{const base=`https://docs.google.com/spreadsheets/d/e/${PUB_ID}/pub?output=csv`;
+  let r=await fetch(base+`&gid=${GID}&single=true`);if(!r.ok)r=await fetch(base);if(!r.ok)throw 0;load(await r.text())}
+ catch(e){fail("Couldn't read the Google Sheet. Check that File → Share → Publish to web is still on, then click Reload. Or use Upload CSV.")}}
+
+const uniq=a=>[...new Set(a)].filter(x=>x!==""&&x!=="0"&&x!=0).sort((x,y)=>x-y);
+/* ---- date range: From/To  >  Week  >  Day  >  whole month ---- */
+function getRange(fill){
+ const y=+F.year||P(DMAX).y,m=+F.month||P(DMAX).m;let s,e;
+ if(F.from||F.to){s=inputKey(F.from)||DMIN;e=inputKey(F.to)||DMAX;if(e<s)e=s}
+ else if(F.week){const w=+F.week;s=key(y,m,(w-1)*7+1);e=key(y,m,Math.min(dimOf(y,m),w*7))}
+ else if(F.day&&!fill){s=e=key(y,m,+F.day)}
+ else{s=key(y,m,1);e=key(y,m,dimOf(y,m))}
+ e=Math.min(e,Math.max(TODAY,DMAX));if(e<s)e=s;
+ return{s,e}}
+function daysList(R){const out=[];for(let k=R.s,n=0;k<=R.e&&n<400;k=addD(k,1),n++)out.push(k);return out}
+const inScope=(o,tid,R)=>o.tid===tid&&o.k>=R.s&&o.k<=R.e&&(!F.property||o.prop===F.property);
+// achieved = completed on its scheduled day
+function doneMap(tid){const s=new Set();rows.forEach(o=>{if(o.tid===tid&&o.done)s.add(o.prop+"|"+o.k)});return s}
+const scopeProps=()=>F.property?[F.property]:PROPS;
+
+function renderFilters(){
+ const fill=tab==="fill",R=getRange(fill),days=daysList(R),dm=doneMap(fill?"ops":tab),ps=fill?PROPS:scopeProps();
+ let f=0;ps.forEach(p=>days.forEach(k=>{if(dm.has(p+"|"+k))f++}));
+ const y=+F.year||P(DMAX).y,m=+F.month||P(DMAX).m,dim=dimOf(y,m),mn=MON[m-1];
+ const sel=(k,label,vals)=>`<label>${label}<select data-k="${k}"><option value="">All</option>${vals.map(([v,t])=>`<option value="${v}" ${F[k]==v?"selected":""}>${t}</option>`).join("")}</select></label>`;
+ const weeks=Array.from({length:Math.ceil(dim/7)},(_,i)=>[i+1,`Week ${i+1} (${i*7+1} ${mn} – ${Math.min(dim,i*7+7)} ${mn})`]);
+ const dnums=Array.from({length:dim},(_,i)=>[i+1,i+1]);
+ $("#filters").innerHTML=sel("year","Year",uniq(rows.map(o=>o.y)).map(v=>[v,v]))+sel("month","Month",uniq(rows.map(o=>o.m)).map(v=>[v,MON[v-1]]))
+  +sel("week","Week",weeks)+(fill?"":sel("day","Day",dnums))
+  +`<label>From date<input type="date" data-k="from" value="${F.from}"></label><label>To date<input type="date" data-k="to" value="${F.to}"></label>`
+  +(fill?"":sel("property","Property",PROPS.slice().sort().map(v=>[v,v])))
+  +(!fill?`<div class="kpi ok"><span>${days.length===1?"Filled Properties":"Filled (property-days)"}</span><b>${f}</b></div>`
+   +(tab==="area"?"":`<div class="kpi no"><span>${days.length===1?"Pending Properties":"Pending (property-days)"}</span><b>${ps.length*days.length-f}</b></div>`):"")
+  +`<div class="note">${fmtS(R.s)} – ${fmtS(R.e)}</div>`;
+ document.querySelectorAll("#filters [data-k]").forEach(s=>s.onchange=()=>{const k=s.dataset.k;F[k]=s.value;
+  if(k==="from"||k==="to"){F.week="";F.day=""}
+  else if(k==="week"){F.from=F.to="";F.day=""}
+  else if(k==="day"){F.from=F.to="";F.week=""}
+  else if(k==="year"||k==="month"){F.from=F.to="";F.week="";F.day=""}
+  render()})}
+function renderTabs(){
+ $("#tabs").innerHTML=[...TASKS,{id:"fill",label:"Filling Rate"}].map(t=>`<button class="${tab===t.id?"on":""}" data-t="${t.id}">${t.label}</button>`).join("");
+ document.querySelectorAll("#tabs button").forEach(b=>b.onclick=()=>{tab=b.dataset.t;render()})}
+
+const tbl=(h,b,f)=>`<div class="wrap"><table><thead><tr>${h.map(x=>`<th>${x}</th>`).join("")}</tr></thead><tbody>${b}</tbody>${f?`<tfoot>${f}</tfoot>`:""}</table></div>`;
+const card=(t,inner,w)=>`<div class="card"${w?' style="grid-column:1/-1"':''}><h2>${t}</h2>${inner}</div>`;
+function donut(f,t){const r=48,c=2*Math.PI*r,p=t?f/t:0;
+ return `<svg viewBox="0 0 140 140" style="width:190px;display:block;margin:auto"><circle cx="70" cy="70" r="${r}" fill="none" stroke="#f9cdd4" stroke-width="16"/><circle cx="70" cy="70" r="${r}" fill="none" stroke="#8fd3b6" stroke-width="16" stroke-dasharray="${c*p} ${c}" transform="rotate(-90 70 70)"/><text x="70" y="76" text-anchor="middle" font-size="22" font-weight="700" fill="#25465f">${Math.round(p*100)}%</text></svg>
+ <div class="leg"><span>&#9632; <span style="color:#5fb593">Filled ${f}</span></span><span>&#9632; <span style="color:#e58a98">Pending ${t-f}</span></span></div>`}
+function snapshot(dm,ps,days){let f=0;ps.forEach(p=>days.forEach(k=>{if(dm.has(p+"|"+k))f++}));
+ return `<div class="g2" style="margin-bottom:14px">`+card("Filled vs Pending",donut(f,ps.length*days.length))+"</div>"}
+
+function taskView(tid){
+ const T=TASKS.find(t=>t.id===tid),R=getRange(false),days=daysList(R),dm=doneMap(tid),ps=scopeProps();
+ const seen=new Set(),data=rows.filter(o=>inScope(o,tid,R)).sort((a,b)=>(a.label||a.prop).localeCompare(b.label||b.prop)||a.k-b.k).filter(o=>{if(!o.grp)return true;if(seen.has(o.grp))return false;seen.add(o.grp);return true});
+ const done=data.filter(o=>o.done),multi=days.length>1;
+ const sumRows=days.map(k=>{const f=ps.filter(p=>dm.has(p+"|"+k)).length;return `<tr><td>${fmt(k)}</td><td>${f} Filled | ${ps.length-f} Pending</td></tr>`}).join("");
+ const extra=[M.asg,M.by,M.sch,M.due,M.cat].filter(i=>i>=0);
+ const compB=done.map(o=>`<tr><td>${o.label||o.prop}</td><td>${fmt(o.k)}</td>${extra.map(i=>`<td title="${o.v[i]||""}">${o.v[i]||""}</td>`).join("")}</tr>`).join("");
+ const inc=[];days.forEach(k=>ps.forEach(p=>{if(!dm.has(p+"|"+k)){
+  const rs=rows.filter(o=>o.tid===tid&&o.prop===p&&o.k===k),r=rs.find(o=>o.late)||rs[0];
+  const lab=r?(r.late?`<span class="badge b-late">Completed late (${fmtS(r.ck)})</span>`:`<span class="badge b-no">${r.status||"Not completed"}</span>`):`<span class="badge b-no">Not submitted</span>`;
+  inc.push(`<tr><td>${p}</td><td>${fmt(k)}</td><td>${lab}</td><td>${opManager(p)}</td></tr>`)}}));
+ const wide=tid==="area"||tid==="om";
+ let out=`<h1 class="title">${T.label}</h1>`+(tid==="ops"||tid==="round"?snapshot(dm,ps,days):"")+`<div class="g2">`
+  +card(`Completed List (${done.length})`,tbl(["Property","Created Date",...extra.map(i=>cols[i])],compB||'<tr><td colspan="9">None</td></tr>'),wide)
+  +(wide?"":card(`Incompleted List (${inc.length})`,tbl(["Property","Created Date","Status","Operation Manager"],inc.join("")||'<tr><td colspan="4">All properties completed on time</td></tr>')))
+  +`</div><div style="height:14px"></div>`+(wide?"":card("Summary",tbl(["Day","Property Summary"],sumRows)));
+ if(tid==="ops")out+=`<div class="g2" style="margin-top:14px">`+elecTables(R,days)+"</div>";
+ const skip=new Set([M.task,M.prop,M.date,M.sch,M.due,M.cre,M.cat,M.y,M.mo,M.d,M.status,...extra]);
+ const has=i=>data.some(o=>(o.v[i]||"").trim()!=="");
+ const isUrl=i=>{const v=data.map(o=>(o.v[i]||'').trim()).filter(Boolean);return v.length&&v.filter(x=>/^https?:/i.test(x)).length/v.length>.5};
+ let left=cols.map((_,i)=>i).filter(i=>!skip.has(i)&&!/photo/i.test(cols[i])&&!META.test(cols[i])&&!/porperty name|property name|name of the property/i.test(cols[i])&&has(i)&&!isUrl(i));
+ const groups=[];
+ T.panels.forEach(([n,re])=>{const g=left.filter(i=>re.test(cols[i]));left=left.filter(i=>!g.includes(i));if(g.length)groups.push([n,g])});
+ if(left.length)groups.push(["Other details",left]);
+ out+=`<div class="g2" style="margin-top:14px">`+groups.map(([n,g])=>{
+  const body=data.filter(o=>g.some(i=>(o.v[i]||"").trim()!=="")).map(o=>`<tr><td>${o.label||o.prop}</td>${multi?`<td>${fmtS(o.k)}</td>`:""}`+g.map(i=>{const v=o.v[i]||"";return `<td${v.length>30?' class="t"':''} title="${v.replace(/"/g,"&quot;")}">${v}</td>`}).join("")+"</tr>").join("");
+  const sums=g.map(i=>{const v=data.map(o=>(o.v[i]||"").trim()).filter(x=>x!=="");return v.length&&v.every(x=>!isNaN(x.replace(/,/g,"")))?Math.round(v.reduce((a,x)=>a+ +x.replace(/,/g,""),0)*100)/100:null});
+  const foot=sums.some(s=>s!==null)?`<tr><td>Total</td>${multi?"<td></td>":""}${sums.map(s=>`<td>${s===null?"":s}</td>`).join("")}</tr>`:"";
+  return card(n,tbl(["Property",...(multi?["Date"]:[]),...g.map(i=>cols[i])],body,foot),g.length>4||data.some(o=>g.some(i=>(o.v[i]||"").length>40)))}).join("")+"</div>";
+ return out}
+
+function elecTables(R,days){
+ const ei=cols.findIndex(h=>/electricity units/i.test(h));if(ei<0)return"";
+ const val={};rows.filter(o=>o.tid==="ops"&&o.k>=R.s&&o.k<=R.e).forEach(o=>{const v=(o.v[ei]||"").trim();if(v!==""&&!isNaN(v)){const q=o.prop+"|"+o.k;val[q]=(val[q]||0)+ +v}});
+ const ps=F.property?[F.property]:PROPS.slice().sort(),one=P(R.s).m===P(R.e).m,lab=k=>one?P(k).d:P(k).d+"/"+P(k).m;
+ const tot=days.map(k=>ps.reduce((a,p)=>a+(val[p+"|"+k]||0),0));
+ const t1=tbl(["Property",...days.map(lab)],ps.map(p=>`<tr><td>${p}</td>${days.map(k=>`<td>${val[p+"|"+k]===undefined?"":Math.round(val[p+"|"+k])}</td>`).join("")}</tr>`).join(""),`<tr><td>Total</td>${tot.map(v=>`<td>${Math.round(v)}</td>`).join("")}</tr>`);
+ const d2=days.slice(1);
+ const t2=tbl(["Property",...d2.map(lab)],ps.map(p=>`<tr><td>${p}</td>${d2.map((k,i)=>{const a=val[p+"|"+k],b=val[p+"|"+days[i]];if(a===undefined||b===undefined)return"<td></td>";const x=Math.round(a-b);return `<td class="${x<0?"neg":""}">${x}</td>`}).join("")}</tr>`).join(""));
+ return card("Electricity Consumption For the Property Day Wise",t1,true)+card("Cumulative Diff Electricity",t2,true)}
+
+/* Filling rate: for each 7-day week, days achieved (completed on the scheduled day) ÷ days in the week */
+function fillTable(tid,byOM,days,chunks){
+ const dm=doneMap(tid),keys=byOM?["Arindam","Jayanta"]:PROPS,pOf=k=>byOM?PROPS.filter(p=>opManager(p)===k):[k];
+ const rate=(ps,dd)=>{if(!dd.length)return null;let f=0;ps.forEach(p=>dd.forEach(k=>{if(dm.has(p+"|"+k))f++}));return f/(ps.length*dd.length)};
+ const cell=v=>v===null?"<td></td>":`<td style="background:${v>=1?"var(--ok)":v>=.8?"var(--mid)":"var(--warn)"}">${(v*100).toFixed(2)}%</td>`;
+ const L=keys.map(k=>({k,w:chunks.map(c=>rate(pOf(k),c)),t:rate(pOf(k),days)})).sort((a,b)=>(a.t??0)-(b.t??0));
+ const body=L.map(l=>`<tr><td>${l.k}</td>${l.w.map(cell).join("")}${cell(l.t)}</tr>`).join("");
+ const pc=v=>v===null?"":(v*100).toFixed(2)+"%";
+ const foot=`<tr><td>Total</td>${chunks.map(c=>`<td>${pc(rate(PROPS,c))}</td>`).join("")}<td>${pc(rate(PROPS,days))}</td></tr>`;
+ return tbl([byOM?"Operation Manager":"Property",...chunks.map((c,i)=>`Week ${i+1}<br><span class="th2">${fmtS(c[0])} – ${fmtS(c[c.length-1])}</span>`),"Total"],body,foot)}
+function fillView(){
+ const R=getRange(true),days=daysList(R),chunks=[];for(let i=0;i<days.length;i+=7)chunks.push(days.slice(i,i+7));
+ const T=TASKS.filter(t=>t.id!=="om");
+ return `<h1 class="title">Filling Rate</h1><div class="g2">`+T.map(t=>card(t.label+" Filling Rate",fillTable(t.id,false,days,chunks)+'<div style="height:12px"></div>'+fillTable(t.id,true,days,chunks),true)).join("")
+ +`</div><p class="note">A day counts as achieved only when the task scheduled for that day was completed on the same day. A week with all 7 days achieved = 100%. Late completions do not count. Weeks are 7-day blocks (1–7, 8–14 …) of the selected month, or of the From/To range. The running week is measured on the days elapsed so far. Blue = 100%, purple = 80%+, pink = below 80%.</p>`}
+
+function tidy(){document.querySelectorAll(".g2").forEach(g=>{let col=0,prev=null;
+ [...g.children].forEach(c=>{if(c.style.gridColumn){if(col===1&&prev)prev.style.gridColumn="1/-1";col=0;prev=null}else{prev=c;col=(col+1)%2;if(!col)prev=null}});
+ if(col===1&&prev)prev.style.gridColumn="1/-1"})}
+function render(){if(!rows.length)return;renderTabs();renderFilters();$("#view").innerHTML=tab==="fill"?fillView():taskView(tab);tidy()}
+$("#reload").onclick=fetchSheet;
+$("#file").onchange=e=>{const f=e.target.files[0];if(f)f.text().then(load)};
+fetchSheet();
+</script>
+</body>
+</html>
